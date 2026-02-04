@@ -12,6 +12,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Background poll every 10 seconds
     setInterval(syncWithCloud, 10000);
     setupGlobalListeners();
+
+    if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js')
+      .then(() => console.log("Service Worker Registered"))
+      .catch((err) => console.log("Service Worker Failed", err));
+}
 });
 
 // --- Cloud Sync Logic ---
@@ -290,3 +296,30 @@ const savePBtn = document.getElementById('save-person-btn');
 if(savePBtn) savePBtn.onclick = addPerson;
 
 window.onclick = (e) => { if (e.target.classList.contains('modal')) closeModals(); };
+
+async function editTask(pIdx, tIdx, newText, listKey) {
+    const person = familyData[pIdx];
+    const task = person[listKey][tIdx];
+    
+    // Only update if the text actually changed
+    if (task.text !== newText.trim()) {
+        const oldText = task.text;
+        task.text = newText.trim();
+        
+        // We need a specific action in code.gs if we wanted to "rename" 
+        // but for now, we can just delete the old one and add the new one
+        // or just leave it local for now.
+        await cloudPost({ 
+            action: "addTask", // This will add the new name to the sheet
+            person: person.name, 
+            text: task.text, 
+            category: listKey 
+        });
+        await cloudPost({ 
+            action: "deleteTask", // This removes the old name
+            person: person.name, 
+            text: oldText, 
+            category: listKey 
+        });
+    }
+}
