@@ -5,6 +5,7 @@ const defaultSchedule = { 0: "Rest & Prep", 1: "Bathrooms", 2: "Floors", 3: "Dus
 let weeklySchedule = defaultSchedule;
 let isSyncing = false;
 let isSyncingFromAction = false; 
+let syncTimeout = null; // Timer for the Silence Window
 
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Instant Load from Cache
@@ -17,9 +18,11 @@ document.addEventListener('DOMContentLoaded', () => {
         updateFocusBanner();
     }
 
-    // 2. Background Sync
+    // 2. Initial Background Sync
     syncWithCloud();
-    setInterval(syncWithCloud, 10000);
+    
+    // 3. Regular background check every 15 seconds
+    setInterval(syncWithCloud, 15000);
     setupGlobalListeners();
 
     if ('serviceWorker' in navigator) {
@@ -31,12 +34,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- Cloud Sync Logic ---
 async function syncWithCloud() {
+    // BLOCK sync if: 
+    // 1. We are already fetching
+    // 2. We RECENTLY made a change (Silence Window)
+    // 3. The user is currently typing
     if (isSyncing || isSyncingFromAction) return; 
     
-    isSyncing = true;
-    const banner = document.getElementById('current-focus');
-    const originalBannerText = banner ? banner.innerText : "";
+    const activeElem = document.activeElement;
+    if (activeElem && (activeElem.tagName === 'INPUT' || activeElem.getAttribute('contenteditable') === 'true')) {
+        return; 
+    }
     
+    isSyncing = true;
     try {
         const response = await fetch(SCRIPT_URL);
         if (!response.ok) throw new Error('Network response was not ok');
@@ -44,7 +53,7 @@ async function syncWithCloud() {
         const cloudData = await response.json();
         processCloudData(cloudData);
         
-        // Cache for next time
+        // Update Cache
         localStorage.setItem('familyCleanupCache', JSON.stringify({
             familyData,
             weeklySchedule
@@ -53,8 +62,7 @@ async function syncWithCloud() {
         updateFocusBanner();
         renderApp();
     } catch (e) {
-        console.error("Cloud sync failed:", e);
-        if (banner) banner.innerText = "Offline Mode - Using Cache";
+        console.error("Background sync failed:", e);
     } finally {
         isSyncing = false;
     }
@@ -121,16 +129,26 @@ function createCard(person, pIdx, listKey, label) {
         </div>
         <div class="add-task-row">
             <input type="text" placeholder="Add ${label}..." id="input-${listKey}-${pIdx}" 
-                onkeypress="if(event.key === 'Enter') addTask(${pIdx}, '${listKey}')">
+                autocomplete="off" onkeypress="if(event.key === 'Enter') addTask(${pIdx}, '${listKey}')">
             <button onclick="addTask(${pIdx}, '${listKey}')">Add</button>
         </div>`;
     return card;
 }
 
-// --- Logic Actions (Cloud POSTs) ---
+// --- Background Cloud Logic (No Loading Screen) ---
 async function cloudPost(data) {
-    isSyncingFromAction = true; 
+    // 1. Enter the Silence Window
+    isSyncingFromAction = true;
+    
+    // Reset the 30-second timer every time a new action happens
+    if (syncTimeout) clearTimeout(syncTimeout);
+    syncTimeout = setTimeout(() => {
+        isSyncingFromAction = false;
+        console.log("Silence Window closed. Resuming background sync.");
+    }, 30000); 
+
     try {
+        // Send data silently
         await fetch(SCRIPT_URL, {
             method: "POST",
             mode: "no-cors",
@@ -138,22 +156,23 @@ async function cloudPost(data) {
             body: JSON.stringify(data)
         });
     } catch (e) {
-        console.error("Post failed:", e);
-    } finally {
-        setTimeout(() => { isSyncingFromAction = false; }, 3000);
+        console.error("Background update failed:", e);
     }
 }
 
+// --- Instant Actions ---
 async function toggleTask(pIdx, tIdx, listKey) {
     const person = familyData[pIdx];
     const task = person[listKey][tIdx];
+    
+    // INSTANT UI update
     task.completed = !task.completed;
-
     if (task.completed && person[listKey].every(t => t.completed)) {
         triggerCelebration(pIdx, listKey);
     }
-
     renderApp(); 
+
+    // Silent background sync
     await cloudPost({
         action: "updateTask",
         person: person.name,
@@ -168,9 +187,12 @@ async function addTask(pIdx, listKey) {
     const person = familyData[pIdx];
     const text = input.value.trim();
     if (text) {
+        // INSTANT UI update
         person[listKey].push({ text: text, completed: false });
         renderApp();
         input.value = ''; 
+        
+        // Silent background sync
         await cloudPost({ action: "addTask", person: person.name, text: text, category: listKey });
     }
 }
@@ -178,8 +200,12 @@ async function addTask(pIdx, listKey) {
 async function deleteTask(pIdx, tIdx, listKey) {
     const person = familyData[pIdx];
     const task = person[listKey][tIdx];
+    
+    // INSTANT UI update
     person[listKey].splice(tIdx, 1);
     renderApp();
+    
+    // Silent background sync
     await cloudPost({ action: "deleteTask", person: person.name, text: task.text, category: listKey });
 }
 
@@ -187,11 +213,12 @@ async function addPerson() {
     const nameInput = document.getElementById('person-name-input');
     const name = nameInput.value.trim();
     if (name) {
-        // Optimistic UI: Add locally first
+        // INSTANT UI update
         familyData.push({ name: name, tasks: [{text: "Welcome!", completed: false}], routine: [] });
         renderApp();
         closeModals();
         
+        // Silent background sync
         await cloudPost({ action: "addPerson", person: name });
         nameInput.value = '';
     }
@@ -200,19 +227,25 @@ async function addPerson() {
 async function deletePerson(idx) {
     if(confirm(`Remove ${familyData[idx].name} and all their tasks?`)) {
         const name = familyData[idx].name;
+        // INSTANT UI update
         familyData.splice(idx, 1);
         renderApp();
+        
+        // Silent background sync
         await cloudPost({ action: "deletePerson", person: name });
     }
 }
 
 async function resetWeek() {
     if(confirm("This will uncheck EVERY box for EVERYONE. Ready for the new week?")) {
+        // INSTANT UI update
         familyData.forEach(p => {
             p.tasks.forEach(t => t.completed = false);
             p.routine.forEach(t => t.completed = false);
         });
         renderApp();
+        
+        // Silent background sync
         await cloudPost({ action: "resetCheckboxes" });
     }
 }
@@ -222,10 +255,15 @@ async function editTask(pIdx, tIdx, newText, listKey) {
     const task = person[listKey][tIdx];
     if (task.text !== newText.trim()) {
         const oldText = task.text;
-        task.text = newText.trim();
+        const updatedText = newText.trim();
+        
+        // INSTANT UI update
+        task.text = updatedText;
         renderApp();
+        
+        // Silent background sync
         await cloudPost({ action: "deleteTask", person: person.name, text: oldText, category: listKey });
-        await cloudPost({ action: "addTask", person: person.name, text: task.text, category: listKey });
+        await cloudPost({ action: "addTask", person: person.name, text: updatedText, category: listKey });
     }
 }
 
