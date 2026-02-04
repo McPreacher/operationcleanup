@@ -73,16 +73,27 @@ function processCloudData(data) {
     const rows = data.tasks || []; 
     
     rows.slice(1).forEach(row => {
-        if (!row[0]) return;
+        if (!row[0]) return; // Skip empty rows
+        
         let person = newFamilyData.find(p => p.name === row[0]);
         if (!person) {
             person = { name: row[0], tasks: [], routine: [] };
             newFamilyData.push(person);
         }
+        
         const category = row[3] || 'tasks';
+        const taskText = row[1];
         const isDone = (row[2] === true || row[2] === "TRUE" || row[2] === "true");
-        person[category].push({ text: row[1], completed: isDone });
+
+        // --- DUPLICATE SHIELD ---
+        // Check if this specific task text already exists for this person in this category
+        const isDuplicate = person[category].some(t => t.text === taskText);
+        
+        if (!isDuplicate) {
+            person[category].push({ text: taskText, completed: isDone });
+        }
     });
+    
     familyData = newFamilyData;
     
     if (data.schedule && data.schedule.length > 1) {
