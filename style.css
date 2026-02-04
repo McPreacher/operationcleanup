@@ -1,0 +1,116 @@
+:root {
+    --primary: #4a90e2;
+    --secondary: #34d399;
+    --bg: #f8fafc;
+    --card-bg: #ffffff;
+    --text: #1e293b;
+    --danger: #ef4444;
+    --border: #e2e8f0;
+}
+
+body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+
+header { text-align: center; margin-bottom: 20px; }
+
+.focus-banner {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    background: #fffbeb; color: #92400e; padding: 12px; border-radius: 12px;
+    border: 1px solid #fde68a; margin: 15px auto; max-width: 450px; font-weight: bold;
+}
+
+.btn-icon { background: none; border: none; cursor: pointer; font-size: 1.2rem; }
+
+.dashboard { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; }
+.stat-card { background: white; padding: 10px 20px; border-radius: 12px; border: 1px solid var(--border); font-weight: bold; }
+
+/* Grid Layout restored */
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+    transition: all 0.3s ease;
+}
+
+.person-card {
+    background: white; padding: 20px; border-radius: 16px; 
+    border: 1px solid var(--border); box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.routine-card { background-color: #f1f5f9; border-style: dashed; }
+
+.card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; border-bottom: 1px solid var(--bg); padding-bottom: 8px; }
+.card-header h3 small { display: block; font-size: 0.7rem; color: #64748b; font-weight: normal; }
+
+.section-header { display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; margin: 30px 0 15px; }
+.section-title { font-size: 1rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 2px; margin: 0; }
+.arrow { font-size: 0.8rem; transition: transform 0.3s; color: #94a3b8; }
+.arrow.rotated { transform: rotate(-90deg); }
+
+.collapsed { display: none !important; }
+
+.task-item { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+.task-item span.done { text-decoration: line-through; color: #94a3b8; }
+
+.btn-primary { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; }
+.btn-secondary { background: var(--secondary); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; }
+.btn-delete-task { background: transparent; border: none; color: #cbd5e1; cursor: pointer; font-size: 0.8rem; }
+.btn-delete-task:hover { color: var(--danger); }
+
+.add-task-row { display: flex; gap: 8px; margin-top: 15px; }
+.add-task-row input { flex-grow: 1; padding: 8px; border: 1px solid var(--border); border-radius: 6px; }
+
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+.modal-content { background: white; padding: 25px; border-radius: 16px; width: 90%; max-width: 400px; }
+.hidden { display: none; }
+
+.schedule-row { display: flex; align-items: center; margin-bottom: 10px; }
+.schedule-row label { width: 100px; font-weight: bold; }
+.schedule-row input { flex-grow: 1; padding: 8px; border: 1px solid var(--border); border-radius: 6px; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px; }
+.hidden { display: none !important; }
+
+/* Checkbox "Pop" Animation */
+input[type="checkbox"] {
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    cursor: pointer;
+}
+
+input[type="checkbox"]:active {
+    transform: scale(1.5);
+}
+
+/* Finished Card Glow */
+.person-card {
+    transition: all 0.4s ease;
+}
+
+/* Target cards where every task is struck through */
+/* 1. Default Card Style (Normal) */
+.person-card {
+    background: white;
+    transition: all 0.4s ease;
+    border: 1px solid var(--border);
+}
+
+/* 2. Finished Card Style */
+/* This targets the card only when it DOES NOT contain a task that is NOT done */
+/* Translation: "If every task has the .done class, apply these styles" */
+.person-card:not(:has(.task-item span:not(.done))):has(.task-item) {
+    border-color: var(--secondary) !important;
+    background-color: #f0fff4 !important; /* Light Green tint */
+    box-shadow: 0 0 15px rgba(52, 211, 153, 0.2);
+}
+
+/* Victory Jiggle Animation */
+@keyframes jiggle {
+    0% { transform: scale(1); }
+    25% { transform: scale(1.05) rotate(1deg); }
+    50% { transform: scale(1.05) rotate(-1deg); }
+    100% { transform: scale(1); }
+}
+
+.celebrate-animation {
+    animation: jiggle 0.6s ease-in-out;
+}

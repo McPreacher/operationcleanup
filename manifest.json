@@ -1,0 +1,15 @@
+{
+  "name": "Operation Cleanup",
+  "short_name": "Cleanup",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#4a90e2",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/995/995053.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

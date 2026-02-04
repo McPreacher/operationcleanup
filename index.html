@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Operation Cleanup</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+</head>
+<body>
+    <header>
+        <h1>🧹 Operation Cleanup</h1>
+        
+        <div class="focus-banner">
+            Today's Focus: <span id="current-focus">Loading...</span>
+            <button onclick="openScheduleModal()" class="btn-icon">⚙️</button>
+        </div>
+
+        <div id="dashboard" class="dashboard">
+            <div class="stat-card">People: <span id="stat-people">0</span></div>
+            <div class="stat-card">Cleanup Tasks: <span id="stat-tasks">0</span></div>
+        </div>
+
+        <div class="controls">
+            <button id="add-person-btn" class="btn-primary">+ Add Person</button>
+            <button id="reset-week-btn" class="btn-secondary">Reset All Checkboxes</button>
+        </div>
+    </header>
+
+    <div class="section-wrapper">
+        <div class="section-header" onclick="toggleSection('app-container', 'cleanup-arrow')">
+            <h2 class="section-title">🚀 Operation Cleanup</h2>
+            <span id="cleanup-arrow" class="arrow">▼</span>
+        </div>
+        <main id="app-container" class="card-grid"></main>
+    </div>
+
+    <div class="section-wrapper">
+        <div class="section-header" onclick="toggleSection('maintenance-container', 'maintenance-arrow')">
+            <h2 class="section-title">🔄 Daily Maintenance</h2>
+            <span id="maintenance-arrow" class="arrow">▼</span>
+        </div>
+        <main id="maintenance-container" class="card-grid"></main>
+    </div>
+
+    <div id="modal" class="modal hidden">
+        <div class="modal-content">
+            <h2>Add Person</h2>
+            <input type="text" id="person-name-input" placeholder="Name (e.g. Caleb)">
+            <div class="modal-actions">
+                <button id="save-person-btn" class="btn-primary">Save</button>
+                <button onclick="closeModals()" class="btn-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="schedule-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2>Weekly Focus Schedule</h2>
+            <div id="schedule-inputs-container"></div>
+            <div class="modal-actions">
+                <button onclick="saveWeeklySchedule()" class="btn-primary">Save Schedule</button>
+                <button onclick="closeModals()" class="btn-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</body>
+</html>
