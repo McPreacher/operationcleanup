@@ -1,43 +1,60 @@
-// 1. YOUR DEPLOYED URL
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwakhpUYSNQZ4l4ZqYuTlLyI-xODo90zBYvpzqig7UC0YoHeo3DM5zAgqKigQH8fKDA8w/exec";
 
 let familyData = [];
 const defaultSchedule = { 0: "Rest & Prep", 1: "Bathrooms", 2: "Floors", 3: "Dusting", 4: "Kitchen", 5: "Laundry", 6: "Yard" };
 let weeklySchedule = defaultSchedule;
 let isSyncing = false;
-let isSyncingFromAction = false; // The anti-flicker lock
+let isSyncingFromAction = false; 
 
 document.addEventListener('DOMContentLoaded', () => {
+    // 1. Instant Load from Cache
+    const cachedData = localStorage.getItem('familyCleanupCache');
+    if (cachedData) {
+        const parsed = JSON.parse(cachedData);
+        familyData = parsed.familyData || [];
+        weeklySchedule = parsed.weeklySchedule || defaultSchedule;
+        renderApp();
+        updateFocusBanner();
+    }
+
+    // 2. Background Sync
     syncWithCloud();
-    // Background poll every 10 seconds
     setInterval(syncWithCloud, 10000);
     setupGlobalListeners();
 
     if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js')
-      .then(() => console.log("Service Worker Registered"))
-      .catch((err) => console.log("Service Worker Failed", err));
-}
+        navigator.serviceWorker.register('./sw.js')
+            .then(() => console.log("Service Worker Registered"))
+            .catch((err) => console.log("Service Worker Failed", err));
+    }
 });
 
 // --- Cloud Sync Logic ---
 async function syncWithCloud() {
-    // If we are currently fetching OR if we just performed an action, skip this sync cycle
     if (isSyncing || isSyncingFromAction) return; 
     
     isSyncing = true;
+    const banner = document.getElementById('current-focus');
+    const originalBannerText = banner ? banner.innerText : "";
+    
     try {
         const response = await fetch(SCRIPT_URL);
         if (!response.ok) throw new Error('Network response was not ok');
         
         const cloudData = await response.json();
         processCloudData(cloudData);
+        
+        // Cache for next time
+        localStorage.setItem('familyCleanupCache', JSON.stringify({
+            familyData,
+            weeklySchedule
+        }));
+
         updateFocusBanner();
         renderApp();
     } catch (e) {
         console.error("Cloud sync failed:", e);
-        const focusBanner = document.getElementById('current-focus');
-        if (focusBanner) focusBanner.innerText = "Offline Mode";
+        if (banner) banner.innerText = "Offline Mode - Using Cache";
     } finally {
         isSyncing = false;
     }
@@ -112,7 +129,7 @@ function createCard(person, pIdx, listKey, label) {
 
 // --- Logic Actions (Cloud POSTs) ---
 async function cloudPost(data) {
-    isSyncingFromAction = true; // Lock sync
+    isSyncingFromAction = true; 
     try {
         await fetch(SCRIPT_URL, {
             method: "POST",
@@ -123,10 +140,7 @@ async function cloudPost(data) {
     } catch (e) {
         console.error("Post failed:", e);
     } finally {
-        // Hold the lock for 3 seconds to let Google Sheets process the update
-        setTimeout(() => {
-            isSyncingFromAction = false;
-        }, 3000);
+        setTimeout(() => { isSyncingFromAction = false; }, 3000);
     }
 }
 
@@ -152,12 +166,11 @@ async function toggleTask(pIdx, tIdx, listKey) {
 async function addTask(pIdx, listKey) {
     const input = document.getElementById(`input-${listKey}-${pIdx}`);
     const person = familyData[pIdx];
-    if (input.value.trim()) {
-        const text = input.value.trim();
+    const text = input.value.trim();
+    if (text) {
         person[listKey].push({ text: text, completed: false });
         renderApp();
         input.value = ''; 
-
         await cloudPost({ action: "addTask", person: person.name, text: text, category: listKey });
     }
 }
@@ -167,7 +180,6 @@ async function deleteTask(pIdx, tIdx, listKey) {
     const task = person[listKey][tIdx];
     person[listKey].splice(tIdx, 1);
     renderApp();
-
     await cloudPost({ action: "deleteTask", person: person.name, text: task.text, category: listKey });
 }
 
@@ -175,11 +187,13 @@ async function addPerson() {
     const nameInput = document.getElementById('person-name-input');
     const name = nameInput.value.trim();
     if (name) {
+        // Optimistic UI: Add locally first
+        familyData.push({ name: name, tasks: [{text: "Welcome!", completed: false}], routine: [] });
+        renderApp();
         closeModals();
+        
         await cloudPost({ action: "addPerson", person: name });
         nameInput.value = '';
-        // Wait longer for person addition to reflect
-        setTimeout(syncWithCloud, 2000);
     }
 }
 
@@ -203,7 +217,19 @@ async function resetWeek() {
     }
 }
 
-// --- Fun Stuff ---
+async function editTask(pIdx, tIdx, newText, listKey) {
+    const person = familyData[pIdx];
+    const task = person[listKey][tIdx];
+    if (task.text !== newText.trim()) {
+        const oldText = task.text;
+        task.text = newText.trim();
+        renderApp();
+        await cloudPost({ action: "deleteTask", person: person.name, text: oldText, category: listKey });
+        await cloudPost({ action: "addTask", person: person.name, text: task.text, category: listKey });
+    }
+}
+
+// --- UI Helpers ---
 function triggerCelebration(pIdx, listKey) {
     if (typeof confetti === 'function') {
         confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
@@ -217,7 +243,6 @@ function triggerCelebration(pIdx, listKey) {
     }, 50);
 }
 
-// --- Helpers & Modals ---
 function setupGlobalListeners() {
     const resetBtn = document.getElementById('reset-week-btn');
     if(resetBtn) resetBtn.onclick = resetWeek;
@@ -225,13 +250,6 @@ function setupGlobalListeners() {
     const personInput = document.getElementById('person-name-input');
     if(personInput) {
         personInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') addPerson(); });
-    }
-    
-    const schedModal = document.getElementById('schedule-modal');
-    if(schedModal) {
-        schedModal.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && e.target.tagName === 'INPUT') saveWeeklySchedule();
-        });
     }
 }
 
@@ -261,7 +279,6 @@ async function saveWeeklySchedule() {
     weeklySchedule = newSched;
     updateFocusBanner();
     closeModals();
-
     await cloudPost({ action: "saveSchedule", schedule: newSched });
 }
 
@@ -283,43 +300,13 @@ function updateDashboard() {
     if (tStat) tStat.innerText = total;
 }
 
-// Initialize buttons
 const addPBtn = document.getElementById('add-person-btn');
-if(addPBtn) {
-    addPBtn.onclick = () => {
-        document.getElementById('modal').classList.remove('hidden');
-        document.getElementById('person-name-input').focus();
-    };
-}
+if(addPBtn) addPBtn.onclick = () => {
+    document.getElementById('modal').classList.remove('hidden');
+    document.getElementById('person-name-input').focus();
+};
 
 const savePBtn = document.getElementById('save-person-btn');
 if(savePBtn) savePBtn.onclick = addPerson;
 
 window.onclick = (e) => { if (e.target.classList.contains('modal')) closeModals(); };
-
-async function editTask(pIdx, tIdx, newText, listKey) {
-    const person = familyData[pIdx];
-    const task = person[listKey][tIdx];
-    
-    // Only update if the text actually changed
-    if (task.text !== newText.trim()) {
-        const oldText = task.text;
-        task.text = newText.trim();
-        
-        // We need a specific action in code.gs if we wanted to "rename" 
-        // but for now, we can just delete the old one and add the new one
-        // or just leave it local for now.
-        await cloudPost({ 
-            action: "addTask", // This will add the new name to the sheet
-            person: person.name, 
-            text: task.text, 
-            category: listKey 
-        });
-        await cloudPost({ 
-            action: "deleteTask", // This removes the old name
-            person: person.name, 
-            text: oldText, 
-            category: listKey 
-        });
-    }
-}

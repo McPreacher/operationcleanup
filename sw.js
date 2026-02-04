@@ -1,25 +1,23 @@
-const CACHE_NAME = 'cleanup-v1';
+const CACHE_NAME = 'cleanup-v2';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
   './app.js',
-  './manifest.json',
-  'https://cdn-icons-png.flaticon.com/512/995/995053.png'
+  './manifest.json'
 ];
 
-// Install: Cache the files
 self.addEventListener('install', (e) => {
-  e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
-  );
+  e.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
 });
 
-// Fetch: Serve from cache if offline
 self.addEventListener('fetch', (e) => {
+  // Only serve the APP SHELL from cache. 
+  // Never cache the SCRIPT_URL (Google Data) so we always get fresh data.
+  if (e.request.url.includes('google.com') || e.request.url.includes('exec')) {
+      return fetch(e.request);
+  }
   e.respondWith(
-    caches.match(e.request).then((response) => {
-      return response || fetch(e.request);
-    })
+    caches.match(e.request).then((response) => response || fetch(e.request))
   );
 });
